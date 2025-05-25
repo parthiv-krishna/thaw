@@ -117,8 +117,16 @@
         let
           cfg = config.services.thaw;
 
-          # Generate machines.json from NixOS configuration
-          machinesJson = pkgs.writeText "machines.json" (builtins.toJSON cfg.machines);
+          # Generate machines.json from NixOS configuration with display_name defaults
+          machinesWithDefaults = mapAttrs (
+            name: machine:
+            machine
+            // {
+              display_name = if machine.display_name == "" then name else machine.display_name;
+            }
+          ) cfg.machines;
+          
+          machinesJson = pkgs.writeText "machines.json" (builtins.toJSON machinesWithDefaults);
 
         in
         {
@@ -176,15 +184,6 @@
           };
 
           config = mkIf cfg.enable {
-            # Set display_name defaults
-            services.thaw.machines = mapAttrs (
-              name: machine:
-              machine
-              // {
-                display_name = if machine.display_name == "" then name else machine.display_name;
-              }
-            ) cfg.machines;
-
             systemd.services.thaw = {
               description = "Thaw wake-on-LAN service";
               wantedBy = [ "multi-user.target" ];
