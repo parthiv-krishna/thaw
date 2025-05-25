@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thaw - Wake Sleeping Machines</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 30px 20px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+
+        .machines-grid {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .machine-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .machine-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .machine-name {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .machine-status {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+
+        .status-icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+        }
+
+        .status-text {
+            font-weight: 500;
+        }
+
+        .status-awake {
+            color: #27ae60;
+        }
+
+        .status-asleep {
+            color: #7f8c8d;
+        }
+
+        .status-unknown {
+            color: #f39c12;
+        }
+
+        .thaw-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 24px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .thaw-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .thaw-button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .popup {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .popup.show {
+            transform: translateX(0);
+        }
+
+        .machine-details {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .last-updated {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 30px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌨️ thaw sleeping machines</h1>
+        </div>
+        
+        <div class="machines-grid">
+            {% for machine_name, config in machines.items() %}
+            <div class="machine-card" data-machine="{{ machine_name }}">
+                <div class="machine-name">{{ config.display_name }}</div>
+                <div class="machine-details">{{ config.ip }}</div>
+                <div class="machine-status">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <button class="thaw-button" onclick="thawMachine('{{ machine_name }}', '{{ config.display_name }}')">
+                    Thaw
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="last-updated">
+            Last updated: <span id="last-updated-time">Never</span>
+        </div>
+    </div>
+
+    <script>
+        const machines = {{ machines | tojson }};
+        const thawingMachines = new Set();
+        const thawTimeouts = new Map(); // Track timeouts for each machine
+        const thawPollingIntervals = new Map(); // Track frequent polling intervals for thawing machines
+        
+        function updateStatus(machine, status) {
+            const card = document.querySelector(`[data-machine="${machine}"]`);
+            if (!card) return;
+            
+            const statusElement = card.querySelector('.machine-status');
+            const icon = statusElement.querySelector('.status-icon');
+            const text = statusElement.querySelector('.status-text');
+            
+            // Remove all status classes
+            statusElement.classList.remove('status-awake', 'status-asleep', 'status-unknown');
+            
+            if (status === 'awake') {
+                icon.textContent = '☀️';
+                text.textContent = 'awake';
+                statusElement.classList.add('status-awake');
+                
+                // If this machine was being thawed, hide the popup and clear timeout
+                if (thawingMachines.has(machine)) {
+                    hideThawingPopup(machines[machine].display_name);
+                    thawingMachines.delete(machine);
+                    
+                    // Clear the timeout since machine woke up successfully
+                    if (thawTimeouts.has(machine)) {
+                        clearTimeout(thawTimeouts.get(machine));
+                        thawTimeouts.delete(machine);
+                    }
+                    
+                    // Stop frequent polling since machine is now awake
+                    if (thawPollingIntervals.has(machine)) {
+                        clearInterval(thawPollingIntervals.get(machine));
+                        thawPollingIntervals.delete(machine);
+                    }
+                }
+            } else if (status === 'asleep') {
+                icon.textContent = '❄️';
+                text.textContent = 'asleep';
+                statusElement.classList.add('status-asleep');
+            } else {
+                icon.textContent = '❓';
+                text.textContent = 'unknown';
+                statusElement.classList.add('status-unknown');
+            }
+        }
+        
+        function fetchStatus(machine) {
+            fetch(`/status/${machine}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        updateStatus(machine, data.status);
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error fetching status for ${machine}:`, error);
+                    updateStatus(machine, 'unknown');
+                });
+        }
+        
+        function fetchAllStatuses() {
+            Object.keys(machines).forEach(machine => {
+                fetchStatus(machine);
+            });
+            
+            // Update last updated time
+            document.getElementById('last-updated-time').textContent = new Date().toLocaleTimeString();
+        }
+        
+        function startFrequentPolling(machine) {
+            // Start polling this machine every second
+            const intervalId = setInterval(() => {
+                fetchStatus(machine);
+            }, 1000);
+            
+            thawPollingIntervals.set(machine, intervalId);
+        }
+        
+        function stopFrequentPolling(machine) {
+            if (thawPollingIntervals.has(machine)) {
+                clearInterval(thawPollingIntervals.get(machine));
+                thawPollingIntervals.delete(machine);
+            }
+        }
+        
+        function showThawingPopup(displayName) {
+            // Remove any existing popup
+            hideThawingPopup();
+            
+            const popup = document.createElement('div');
+            popup.className = 'popup';
+            popup.id = `popup-${displayName}`;
+            popup.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="loading"></div>
+                    <span>Thawing ${displayName}...</span>
+                </div>
+            `;
+            
+            document.body.appendChild(popup);
+            
+            // Show popup with animation
+            setTimeout(() => {
+                popup.classList.add('show');
+            }, 10);
+        }
+        
+        function showErrorPopup(displayName, message) {
+            // Remove any existing popup
+            hideThawingPopup();
+            
+            const popup = document.createElement('div');
+            popup.className = 'popup show';
+            popup.style.background = '#e74c3c';
+            popup.textContent = message;
+            document.body.appendChild(popup);
+            
+            // Auto-hide error popup after 5 seconds
+            setTimeout(() => hideThawingPopup(), 5000);
+        }
+        
+        function hideThawingPopup(displayName = null) {
+            let popups;
+            if (displayName) {
+                popups = [document.getElementById(`popup-${displayName}`)].filter(p => p);
+            } else {
+                popups = document.querySelectorAll('.popup');
+            }
+            
+            popups.forEach(popup => {
+                popup.classList.remove('show');
+                setTimeout(() => {
+                    if (popup.parentNode) {
+                        popup.parentNode.removeChild(popup);
+                    }
+                }, 300);
+            });
+        }
+        
+        function thawMachine(machine, displayName) {
+            // Show thawing popup
+            showThawingPopup(displayName);
+            thawingMachines.add(machine);
+            
+            // Start frequent polling (every second) for this machine
+            startFrequentPolling(machine);
+            
+            // Set a 15-second timeout
+            const timeoutId = setTimeout(() => {
+                if (thawingMachines.has(machine)) {
+                    // Machine didn't wake up in time
+                    thawingMachines.delete(machine);
+                    thawTimeouts.delete(machine);
+                    stopFrequentPolling(machine);
+                    showErrorPopup(displayName, `Something went wrong thawing ${displayName}`);
+                }
+            }, 15000);
+            
+            thawTimeouts.set(machine, timeoutId);
+            
+            // Send wake request
+            fetch(`/wake/${machine}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error('Wake request failed:', data.message);
+                    
+                    // Clear timeout and cleanup
+                    if (thawTimeouts.has(machine)) {
+                        clearTimeout(thawTimeouts.get(machine));
+                        thawTimeouts.delete(machine);
+                    }
+                    thawingMachines.delete(machine);
+                    stopFrequentPolling(machine);
+                    
+                    showErrorPopup(displayName, `Failed to thaw ${displayName}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending wake request:', error);
+                
+                // Clear timeout and cleanup
+                if (thawTimeouts.has(machine)) {
+                    clearTimeout(thawTimeouts.get(machine));
+                    thawTimeouts.delete(machine);
+                }
+                thawingMachines.delete(machine);
+                stopFrequentPolling(machine);
+                
+                showErrorPopup(displayName, `Failed to thaw ${displayName}`);
+            });
+        }
+        
+        // Initial status fetch
+        fetchAllStatuses();
+        
+        // Poll status every 5 seconds
+        setInterval(fetchAllStatuses, 5000);
+    </script>
+</body>
+</html> 
