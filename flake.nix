@@ -34,7 +34,10 @@
 
           src = ./.;
 
-          buildInputs = [ pythonEnv ];
+          buildInputs = [
+            pythonEnv
+            pkgs.iputils # Add iputils for ping command
+          ];
 
           installPhase = ''
             mkdir -p $out/bin $out/share/thaw
@@ -46,6 +49,7 @@
             # Create wrapper script
             cat > $out/bin/thaw << EOF
             #!${pkgs.bash}/bin/bash
+            export PATH=${pkgs.iputils}/bin:${pythonEnv}/bin:\$PATH
             cd $out/share/thaw
             exec ${pythonEnv}/bin/python thaw.py "\$@"
             EOF
@@ -125,7 +129,7 @@
               display_name = if machine.display_name == "" then name else machine.display_name;
             }
           ) cfg.machines;
-          
+
           machinesJson = pkgs.writeText "machines.json" (builtins.toJSON machinesWithDefaults);
 
         in
@@ -196,7 +200,9 @@
                 Restart = "always";
                 RestartSec = "10s";
 
-                ExecStart = "${self.packages.${pkgs.system}.thaw}/bin/thaw --machines ${machinesJson} --port ${toString cfg.port}";
+                ExecStart = "${
+                  self.packages.${pkgs.system}.thaw
+                }/bin/thaw --machines ${machinesJson} --port ${toString cfg.port}";
 
                 # Security settings
                 NoNewPrivileges = true;
