@@ -100,141 +100,144 @@
               black.enable = true;
             };
           };
+      }
+    )
+    // {
 
-        # NixOS module
-        nixosModules.thaw =
-          {
-            config,
-            lib,
-            pkgs,
-            ...
-          }:
-          with lib;
-          let
-            cfg = config.services.thaw;
+      # NixOS module
+      nixosModules.default = self.nixosModules.thaw;
+      nixosModules.thaw =
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
+        with lib;
+        let
+          cfg = config.services.thaw;
 
-            # Generate machines.json from NixOS configuration
-            machinesJson = pkgs.writeText "machines.json" (builtins.toJSON cfg.machines);
+          # Generate machines.json from NixOS configuration
+          machinesJson = pkgs.writeText "machines.json" (builtins.toJSON cfg.machines);
 
-          in
-          {
-            options.services.thaw = {
-              enable = mkEnableOption "Thaw wake-on-LAN service";
+        in
+        {
+          options.services.thaw = {
+            enable = mkEnableOption "Thaw wake-on-LAN service";
 
-              port = mkOption {
-                type = types.int;
-                default = 8080;
-                description = "Port for the web interface";
-              };
-
-              machines = mkOption {
-                type = types.attrsOf (
-                  types.submodule {
-                    options = {
-                      ip = mkOption {
-                        type = types.str;
-                        description = "IP address to ping for status checks";
-                      };
-
-                      mac = mkOption {
-                        type = types.str;
-                        description = "MAC address for wake-on-LAN";
-                      };
-
-                      broadcast_ip = mkOption {
-                        type = types.str;
-                        description = "Broadcast IP for wake-on-LAN packets";
-                      };
-
-                      timeout_seconds = mkOption {
-                        type = types.int;
-                        default = 1;
-                        description = "Ping timeout (seconds)";
-                      };
-
-                      wake_port = mkOption {
-                        type = types.int;
-                        default = 9;
-                        description = "UDP port for wake-on-LAN";
-                      };
-
-                      display_name = mkOption {
-                        type = types.str;
-                        default = "";
-                        description = "Human-readable name (defaults to machine name)";
-                      };
-                    };
-                  }
-                );
-                default = { };
-                description = "Machines to monitor and wake";
-              };
+            port = mkOption {
+              type = types.int;
+              default = 8080;
+              description = "Port for the web interface";
             };
 
-            config = mkIf cfg.enable {
-              # Set display_name defaults
-              services.thaw.machines = mapAttrs (
-                name: machine:
-                machine
-                // {
-                  display_name = if machine.display_name == "" then name else machine.display_name;
+            machines = mkOption {
+              type = types.attrsOf (
+                types.submodule {
+                  options = {
+                    ip = mkOption {
+                      type = types.str;
+                      description = "IP address to ping for status checks";
+                    };
+
+                    mac = mkOption {
+                      type = types.str;
+                      description = "MAC address for wake-on-LAN";
+                    };
+
+                    broadcast_ip = mkOption {
+                      type = types.str;
+                      description = "Broadcast IP for wake-on-LAN packets";
+                    };
+
+                    timeout_seconds = mkOption {
+                      type = types.int;
+                      default = 1;
+                      description = "Ping timeout (seconds)";
+                    };
+
+                    wake_port = mkOption {
+                      type = types.int;
+                      default = 9;
+                      description = "UDP port for wake-on-LAN";
+                    };
+
+                    display_name = mkOption {
+                      type = types.str;
+                      default = "";
+                      description = "Human-readable name (defaults to machine name)";
+                    };
+                  };
                 }
-              ) cfg.machines;
-
-              systemd.services.thaw = {
-                description = "Thaw wake-on-LAN service";
-                wantedBy = [ "multi-user.target" ];
-                after = [ "network.target" ];
-
-                serviceConfig = {
-                  Type = "simple";
-                  User = "thaw";
-                  Group = "thaw";
-                  Restart = "always";
-                  RestartSec = "10s";
-
-                  ExecStart = "${thaw}/bin/thaw --machines ${machinesJson} --port ${toString cfg.port}";
-
-                  # Security settings
-                  NoNewPrivileges = true;
-                  ProtectSystem = "strict";
-                  ProtectHome = true;
-                  PrivateTmp = true;
-                  PrivateDevices = true;
-                  ProtectHostname = true;
-                  ProtectClock = true;
-                  ProtectKernelTunables = true;
-                  ProtectKernelModules = true;
-                  ProtectKernelLogs = true;
-                  ProtectControlGroups = true;
-                  RestrictAddressFamilies = [
-                    "AF_UNIX"
-                    "AF_INET"
-                    "AF_INET6"
-                  ];
-                  RestrictNamespaces = true;
-                  LockPersonality = true;
-                  MemoryDenyWriteExecute = true;
-                  RestrictRealtime = true;
-                  RestrictSUIDSGID = true;
-                  RemoveIPC = true;
-
-                  # Required capabilities for networking
-                  CapabilityBoundingSet = [ "CAP_NET_RAW" ];
-                  AmbientCapabilities = [ "CAP_NET_RAW" ];
-                };
-              };
-
-              # Create thaw user
-              users.users.thaw = {
-                isSystemUser = true;
-                group = "thaw";
-                description = "Thaw service user";
-              };
-
-              users.groups.thaw = { };
+              );
+              default = { };
+              description = "Machines to monitor and wake";
             };
           };
-      }
-    );
+
+          config = mkIf cfg.enable {
+            # Set display_name defaults
+            services.thaw.machines = mapAttrs (
+              name: machine:
+              machine
+              // {
+                display_name = if machine.display_name == "" then name else machine.display_name;
+              }
+            ) cfg.machines;
+
+            systemd.services.thaw = {
+              description = "Thaw wake-on-LAN service";
+              wantedBy = [ "multi-user.target" ];
+              after = [ "network.target" ];
+
+              serviceConfig = {
+                Type = "simple";
+                User = "thaw";
+                Group = "thaw";
+                Restart = "always";
+                RestartSec = "10s";
+
+                ExecStart = "${self.packages.${pkgs.system}.thaw}/bin/thaw --machines ${machinesJson} --port ${toString cfg.port}";
+
+                # Security settings
+                NoNewPrivileges = true;
+                ProtectSystem = "strict";
+                ProtectHome = true;
+                PrivateTmp = true;
+                PrivateDevices = true;
+                ProtectHostname = true;
+                ProtectClock = true;
+                ProtectKernelTunables = true;
+                ProtectKernelModules = true;
+                ProtectKernelLogs = true;
+                ProtectControlGroups = true;
+                RestrictAddressFamilies = [
+                  "AF_UNIX"
+                  "AF_INET"
+                  "AF_INET6"
+                ];
+                RestrictNamespaces = true;
+                LockPersonality = true;
+                MemoryDenyWriteExecute = true;
+                RestrictRealtime = true;
+                RestrictSUIDSGID = true;
+                RemoveIPC = true;
+
+                # Required capabilities for networking
+                CapabilityBoundingSet = [ "CAP_NET_RAW" ];
+                AmbientCapabilities = [ "CAP_NET_RAW" ];
+              };
+            };
+
+            # Create thaw user
+            users.users.thaw = {
+              isSystemUser = true;
+              group = "thaw";
+              description = "Thaw service user";
+            };
+
+            users.groups.thaw = { };
+          };
+        };
+    };
 }
