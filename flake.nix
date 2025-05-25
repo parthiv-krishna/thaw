@@ -15,7 +15,7 @@
       nixpkgs,
       flake-utils,
       treefmt-nix,
-      self
+      self,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:

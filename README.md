@@ -10,12 +10,12 @@ Thaw is a lightweight web application that monitors your network machines and al
 
 ```bash
 # Run directly with nix
-nix run github:parthiv-krishna/thaw
+nix run github:parthiv-krishna/thaw -- --machines /abspath/to/machines.json --port PORT
 
 # Or clone and run locally
 git clone https://github.com/parthiv-krishna/thaw.git
 cd thaw
-nix run
+nix run .# -- --machines /abspath/to/machines.json --port PORT
 ```
 
 ### Manual Installation
