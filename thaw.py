@@ -45,31 +45,23 @@ class MachineMonitor:
             return False
 
     def wake_on_lan(self, mac_address, broadcast_ip, port=9):
-        """Send a Wake-on-LAN packet to wake up a machine."""
+        """Send a Wake-on-LAN packet to wake up a machine using the system wakeonlan command."""
         try:
-            # Remove any separators from MAC address and convert to bytes
-            mac_clean = mac_address.replace(":", "").replace("-", "").lower()
-            if len(mac_clean) != 12:
-                raise ValueError(f"Invalid MAC address: {mac_address}")
-
-            mac_bytes = bytes.fromhex(mac_clean)
-
-            # Create magic packet: 6 bytes of 0xFF followed by 16 repetitions of MAC
-            magic_packet = b"\xff" * 6 + mac_bytes * 16
-
-            # Send the packet
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            sock.sendto(magic_packet, (broadcast_ip, port))
-            sock.close()
-
-            logger.info(
-                f"Wake-on-LAN packet sent to {mac_address} at {broadcast_ip}:{port}"
-            )
-            return True
-
+            cmd = [
+                "wakeonlan",
+                "-i", broadcast_ip,
+                "-p", str(port),
+                mac_address
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                logger.info(f"wakeonlan command succeeded: {result.stdout.strip()}")
+                return True
+            else:
+                logger.error(f"wakeonlan command failed: {result.stderr.strip()}")
+                return False
         except Exception as e:
-            logger.error(f"Failed to send Wake-on-LAN packet to {mac_address}: {e}")
+            logger.error(f"Failed to run wakeonlan command: {e}")
             return False
 
     def get_status(self, machine_name):

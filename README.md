@@ -24,6 +24,9 @@ nix run .# -- --machines /abspath/to/machines.json --port PORT
 # Install dependencies
 pip install flask
 
+# also, you need to have access to `ping` and `wakeonlan` 
+# make sure you've installed those
+
 # Run the application
 python thaw.py --machines machines.json --port 8080
 ```

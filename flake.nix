@@ -36,7 +36,8 @@
 
           buildInputs = [
             pythonEnv
-            pkgs.iputils # Add iputils for ping command
+            pkgs.iputils
+            pkgs.wakeonlan
           ];
 
           installPhase = ''
@@ -49,7 +50,7 @@
             # Create wrapper script
             cat > $out/bin/thaw << EOF
             #!${pkgs.bash}/bin/bash
-            export PATH=${pkgs.iputils}/bin:${pythonEnv}/bin:\$PATH
+            export PATH=${pkgs.iputils}/bin:${pkgs.wakeonlan}/bin:${pythonEnv}/bin:\$PATH
             cd $out/share/thaw
             exec ${pythonEnv}/bin/python thaw.py "\$@"
             EOF
@@ -82,7 +83,8 @@
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pythonEnv
-            pkgs.iputils # for ping command
+            pkgs.iputils
+            pkgs.wakeonlan
           ];
 
           shellHook = ''
