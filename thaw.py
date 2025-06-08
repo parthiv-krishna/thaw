@@ -22,21 +22,28 @@ logger = logging.getLogger(__name__)
 
 class CronScheduler:
     """A simple scheduler that supports human-readable expressions."""
-    
+
     def __init__(self):
         self.jobs = []
         self.running = False
         self.thread = None
         self.weekday_map = {
-            'sun': 0, 'sunday': 0,
-            'mon': 1, 'monday': 1,
-            'tue': 2, 'tuesday': 2,
-            'wed': 3, 'wednesday': 3,
-            'thu': 4, 'thursday': 4,
-            'fri': 5, 'friday': 5,
-            'sat': 6, 'saturday': 6
+            "sun": 0,
+            "sunday": 0,
+            "mon": 1,
+            "monday": 1,
+            "tue": 2,
+            "tuesday": 2,
+            "wed": 3,
+            "wednesday": 3,
+            "thu": 4,
+            "thursday": 4,
+            "fri": 5,
+            "friday": 5,
+            "sat": 6,
+            "saturday": 6,
         }
-    
+
     def parse_schedule_expression(self, schedule_expr):
         """Parse a schedule expression in the format: day month weekday time
         Examples:
@@ -47,48 +54,52 @@ class CronScheduler:
         """
         parts = schedule_expr.strip().split()
         if len(parts) != 4:
-            raise ValueError(f"Invalid schedule expression: {schedule_expr}. Expected format: 'day month weekday time'")
-        
+            raise ValueError(
+                f"Invalid schedule expression: {schedule_expr}. Expected format: 'day month weekday time'"
+            )
+
         day_part, month_part, weekday_part, time_part = parts
-        
+
         # Parse time (HH:MM)
-        if ':' not in time_part:
+        if ":" not in time_part:
             raise ValueError(f"Invalid time format: {time_part}. Expected HH:MM format")
-        
+
         try:
-            hour_str, minute_str = time_part.split(':')
+            hour_str, minute_str = time_part.split(":")
             hour = int(hour_str)
             minute = int(minute_str)
-            
+
             if not (0 <= hour <= 23) or not (0 <= minute <= 59):
-                raise ValueError(f"Invalid time: {time_part}. Hour must be 0-23, minute must be 0-59")
+                raise ValueError(
+                    f"Invalid time: {time_part}. Hour must be 0-23, minute must be 0-59"
+                )
         except ValueError as e:
             raise ValueError(f"Invalid time format: {time_part}. {e}")
-        
+
         return {
-            'minute': [minute],
-            'hour': [hour],
-            'day': self._parse_field(day_part, 1, 31),
-            'month': self._parse_field(month_part, 1, 12),
-            'weekday': self._parse_weekday(weekday_part)
+            "minute": [minute],
+            "hour": [hour],
+            "day": self._parse_field(day_part, 1, 31),
+            "month": self._parse_field(month_part, 1, 12),
+            "weekday": self._parse_weekday(weekday_part),
         }
-    
+
     def _parse_field(self, field, min_val, max_val):
         """Parse a single field (supports *, numbers, and comma-separated values)"""
-        if field == '*':
+        if field == "*":
             return list(range(min_val, max_val + 1))
-        elif ',' in field:
-            return [int(x.strip()) for x in field.split(',') if x.strip()]
+        elif "," in field:
+            return [int(x.strip()) for x in field.split(",") if x.strip()]
         else:
             return [int(field)]
-    
+
     def _parse_weekday(self, weekday_field):
         """Parse weekday field (supports *, day names, and comma-separated values)"""
-        if weekday_field == '*':
+        if weekday_field == "*":
             return list(range(0, 7))  # All days
-        
+
         weekdays = []
-        for day in weekday_field.lower().split(','):
+        for day in weekday_field.lower().split(","):
             day = day.strip()
             if day in self.weekday_map:
                 weekdays.append(self.weekday_map[day])
@@ -101,79 +112,87 @@ class CronScheduler:
                     else:
                         raise ValueError(f"Invalid weekday: {day}")
                 except ValueError:
-                    raise ValueError(f"Invalid weekday: {day}. Use day names (Sun, Mon, etc.) or numbers 0-6")
-        
+                    raise ValueError(
+                        f"Invalid weekday: {day}. Use day names (Sun, Mon, etc.) or numbers 0-6"
+                    )
+
         return weekdays
-    
+
     def should_run(self, schedule, now=None):
         """Check if a schedule should run at the given time"""
         if now is None:
             now = datetime.now()
-        
+
         # Convert Python weekday (Monday=0) to our weekday (Sunday=0)
         python_weekday = now.weekday()  # Monday=0, Sunday=6
         our_weekday = (python_weekday + 1) % 7  # Sunday=0, Saturday=6
-        
+
         return (
-            now.minute in schedule['minute'] and
-            now.hour in schedule['hour'] and
-            now.day in schedule['day'] and
-            now.month in schedule['month'] and
-            our_weekday in schedule['weekday']
+            now.minute in schedule["minute"]
+            and now.hour in schedule["hour"]
+            and now.day in schedule["day"]
+            and now.month in schedule["month"]
+            and our_weekday in schedule["weekday"]
         )
-    
+
     def add_job(self, schedule_expr, callback, *args, **kwargs):
         """Add a scheduled job"""
         try:
             schedule = self.parse_schedule_expression(schedule_expr)
-            self.jobs.append({
-                'schedule': schedule,
-                'callback': callback,
-                'args': args,
-                'kwargs': kwargs,
-                'schedule_expr': schedule_expr
-            })
+            self.jobs.append(
+                {
+                    "schedule": schedule,
+                    "callback": callback,
+                    "args": args,
+                    "kwargs": kwargs,
+                    "schedule_expr": schedule_expr,
+                }
+            )
             logger.info(f"Added scheduled job: {schedule_expr}")
         except Exception as e:
             logger.error(f"Failed to add scheduled job '{schedule_expr}': {e}")
-    
+
     def start(self):
         """Start the scheduler in a background thread"""
         if self.running:
             return
-        
+
         self.running = True
         self.thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.thread.start()
         logger.info("Scheduler started")
-    
+
     def stop(self):
         """Stop the scheduler"""
         self.running = False
         if self.thread:
             self.thread.join()
         logger.info("Scheduler stopped")
-    
+
     def _run_scheduler(self):
         """Main scheduler loop"""
         last_minute = None
-        
+
         while self.running:
             now = datetime.now()
             current_minute = (now.hour, now.minute)
-            
+
             # Only check jobs once per minute
             if current_minute != last_minute:
                 last_minute = current_minute
-                
+
                 for job in self.jobs:
                     try:
-                        if self.should_run(job['schedule'], now):
-                            logger.info(f"Executing scheduled job: {job['schedule_expr']}")
-                            job['callback'](*job['args'], **job['kwargs'])
+                        if self.should_run(job["schedule"], now):
+                            logger.info(
+                                f"Executing scheduled job: {job['schedule_expr']}"
+                            )
+                            job["callback"](*job["args"], **job["kwargs"])
                     except Exception as e:
-                        logger.error(f"Error executing scheduled job '{job['schedule_expr']}': {e}")
-            
+                        logger.error(
+                            f"Error executing scheduled job '{job['schedule_expr']}': {e}"
+                        )
+
             # Sleep for a short time to avoid busy waiting
             time.sleep(1)
 
@@ -190,44 +209,42 @@ class MachineMonitor:
     def setup_wakeup_schedules(self):
         """Set up wakeup schedules for all machines"""
         for machine_name, config in self.machines.items():
-            wakeup_schedules = config.get('wakeup_schedules', [])
+            wakeup_schedules = config.get("wakeup_schedules", [])
             for schedule in wakeup_schedules:
                 if schedule and schedule.strip():  # Skip empty schedules
-                    self.scheduler.add_job(
-                        schedule, 
-                        self.scheduled_wake, 
-                        machine_name
-                    )
-        
+                    self.scheduler.add_job(schedule, self.scheduled_wake, machine_name)
+
         if self.scheduler.jobs:
             self.scheduler.start()
-            logger.info(f"Started scheduler with {len(self.scheduler.jobs)} wakeup schedules")
+            logger.info(
+                f"Started scheduler with {len(self.scheduler.jobs)} wakeup schedules"
+            )
 
     def scheduled_wake(self, machine_name):
         """Wake a machine as part of a scheduled job"""
         if machine_name not in self.machines:
             logger.error(f"Scheduled wake failed: machine '{machine_name}' not found")
             return
-        
+
         config = self.machines[machine_name]
-        display_name = config.get('display_name', machine_name)
-        
+        display_name = config.get("display_name", machine_name)
+
         logger.info(f"Scheduled wake initiated for {display_name} ({machine_name})")
-        
+
         success = self.wake_on_lan(
-            config["mac"], 
-            config["broadcast_ip"], 
-            config.get("wake_port", 9)
+            config["mac"], config["broadcast_ip"], config.get("wake_port", 9)
         )
-        
+
         if success:
             logger.info(f"Scheduled wake-on-LAN packet sent to {display_name}")
         else:
-            logger.error(f"Failed to send scheduled wake-on-LAN packet to {display_name}")
+            logger.error(
+                f"Failed to send scheduled wake-on-LAN packet to {display_name}"
+            )
 
     def shutdown(self):
         """Clean shutdown of the monitor"""
-        if hasattr(self, 'scheduler'):
+        if hasattr(self, "scheduler"):
             self.scheduler.stop()
 
     def ping_machine(self, ip, timeout_seconds=1):
@@ -251,12 +268,7 @@ class MachineMonitor:
     def wake_on_lan(self, mac_address, broadcast_ip, port=9):
         """Send a Wake-on-LAN packet to wake up a machine using the system wakeonlan command."""
         try:
-            cmd = [
-                "wakeonlan",
-                "-i", broadcast_ip,
-                "-p", str(port),
-                mac_address
-            ]
+            cmd = ["wakeonlan", "-i", broadcast_ip, "-p", str(port), mac_address]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
                 logger.info(f"wakeonlan command succeeded: {result.stdout.strip()}")
@@ -340,7 +352,7 @@ def load_machines_config(config_file):
             config.setdefault("wake_port", 9)
             config.setdefault("display_name", name)
             config.setdefault("wakeup_schedules", [])
-            
+
             # Validate wakeup_schedules is a list
             if not isinstance(config["wakeup_schedules"], list):
                 raise ValueError(
@@ -440,7 +452,7 @@ def main():
         # Create global monitor
         global monitor
         monitor = MachineMonitor(machines_config)
-        
+
         # Set up wakeup schedules
         monitor.setup_wakeup_schedules()
 

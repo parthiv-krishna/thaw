@@ -181,6 +181,16 @@
                       default = "";
                       description = "Human-readable name (defaults to machine name)";
                     };
+
+                    wakeup_schedules = mkOption {
+                      type = types.listOf types.str;
+                      default = [ ];
+                      description = "List of wakeup schedules in format 'day month weekday time' (e.g., '* * Sun 07:00')";
+                      example = [
+                        "* * Sun 07:00"
+                        "15 * Mon 09:30"
+                      ];
+                    };
                   };
                 }
               );
